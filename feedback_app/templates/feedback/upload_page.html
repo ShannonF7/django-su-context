@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}上传新参考资料{% endblock %}
+
+{% block content %}
+<div class="container py-3 py-md-5">
+    <div class="card shadow-lg">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">上传新参考资料</h3>
+        </div>
+
+        <div class="card-body">
+            <form id="upload-form">
+                {% csrf_token %}
+                <input type="hidden" id="feedback-id" value="{{ feedback.id }}">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">文档内容</label>
+                    <textarea id="upload-content" class="form-control" rows="6" placeholder="请输入文档内容..."
+                        required></textarea>
+                    <div class="form-text text-end mt-1">
+                        <span id="char-counter">0</span> 字符
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">关键词</label>
+                    <div class="alert alert-info py-2">
+                        <i class="fas fa-info-circle me-2"></i>
+                        系统将自动添加反馈问题作为关键词: <strong>"{{ feedback.record.question }}"</strong>
+                    </div>
+                    <input type="text" id="keywords-input" class="form-control" placeholder="输入自定义关键词，多个用逗号分隔 (可选)">
+                    <div class="form-text">自定义关键词将添加到反馈问题之后</div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                    <button type="button" class="btn btn-outline-secondary me-md-2"
+                        onclick="window.history.back()">返回</button>
+                    <button type="submit" class="btn btn-success px-4" id="submit-btn">
+                        <span class="upload-text">上传文档</span>
+                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="upload-status" class="mt-4"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    'use strict';
+
+    function showAlert(type, message, autoClose = true) {
+        const statusDiv = document.getElementById('upload-status');
+        if (!statusDiv) return;
+
+        statusDiv.innerHTML = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+
+        if (autoClose && type !== 'danger') {
+            setTimeout(() => {
+                const alert = bootstrap.Alert.getOrCreateInstance(statusDiv.querySelector('.alert'));
+                alert.close();
+            }, 5000);
+        }
+    }
+
+    function monitorTaskStatus(taskId) {
+        const checkStatus = async () => {
+            try {
+                const resp = await fetch(`{% url 'feedback:check_task_status' %}?task_id=${taskId}`);
+                if (!resp.ok) throw new Error('无法获取任务状态');
+
+                const data = await resp.json();
+
+                if (data.status === 'success') {
+                    showAlert('success',
+                        `上传成功! 文档ID: ${data.document_id}
+                        <button class="btn btn-sm btn-danger ms-2" 
+                                onclick="deleteDocument('${data.document_id}')">
+                            删除
+                        </button>`, false);
+                } else if (data.status === 'failed') {
+                    showAlert('danger', `上传失败: ${data.message || '未知错误'}`, false);
+                } else {
+                    setTimeout(checkStatus, 2000); // Check again in 2 seconds
+                }
+            } catch (err) {
+                showAlert('danger', `网络错误: ${err.message}`);
+            }
+        };
+
+        setTimeout(checkStatus, 2000);
+    }
+
+    async function deleteDocument(docId) {
+        if (!confirm('确定要删除此文档吗？')) return;
+
+        showAlert('info', '正在删除文档...', false);
+
+        try {
+            const resp = await fetch("{% url 'feedback:delete_document' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({ id: docId })
+            });
+
+            const data = await resp.json();
+            if (data.status === 'processing') {
+                showAlert('info', '删除请求已提交', false);
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert('danger', `删除失败: ${data.message}`, false);
+            }
+        } catch (err) {
+            showAlert('danger', `网络错误: ${err.message}`, false);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('upload-content').addEventListener('input', function () {
+            document.getElementById('char-counter').textContent = this.value.length;
+        });
+
+        document.getElementById('upload-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            if (window.submitting) return;
+            window.submitting = true;
+
+            const content = document.getElementById('upload-content').value.trim();
+            const feedbackId = document.getElementById('feedback-id').value;
+
+            if (!content) {
+                showAlert('warning', '文档内容不能为空');
+                window.submitting = false;
+                return;
+            }
+
+            // Fetch user input keywords
+            const userInput = document.getElementById('keywords-input').value;
+            const customKeywords = userInput
+                .split(/[，,　 ]+/g)
+                .map(kw => kw.trim())
+                .filter(kw => kw.length > 0);
+
+            // Generate keywords array
+            const question = "{{ feedback.record.question }}" || "默认问题";
+            const keywords = [question.trim(), ...customKeywords]
+                .filter(kw => kw.length > 0);
+
+            if (keywords.length === 0) {
+                showAlert('warning', '关键词不能为空');
+                window.submitting = false;
+                return;
+            }
+
+            const payload = {
+                texts: [content],
+                metadatas: [{
+                    keywords: keywords
+                }]
+            };
+
+            // Show loading state
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.querySelector('.upload-text').textContent = '上传中...';
+            submitBtn.querySelector('.spinner-border').classList.remove('d-none');
+
+            try {
+                const resp = await fetch("{% url 'feedback:add_document' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await resp.json();
+
+                if (data.status === 'processing') {
+                    showAlert('info', `文档处理中 - 任务ID: ${data.task_id}`, false);
+                    monitorTaskStatus(data.task_id);
+                } else {
+                    showAlert('danger', `错误: ${data.message || '未知错误'}`);
+                }
+            } catch (err) {
+                showAlert('danger', `网络错误: ${err.message}`);
+            } finally {
+                // Reset button state
+                submitBtn.disabled = false;
+                submitBtn.querySelector('.upload-text').textContent = '上传文档';
+                submitBtn.querySelector('.spinner-border').classList.add('d-none');
+                window.submitting = false;
+            }
+        });
+    });
+</script>
+
+{% endblock %}

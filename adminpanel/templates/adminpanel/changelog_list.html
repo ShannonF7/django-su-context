@@ -1,0 +1,282 @@
+{% extends "adminpanel/base.html" %}
+{% load humanize %}
+
+{% block title %}修改记录 - 管理后台{% endblock %}
+
+{% block content %}
+<div class="card border-0 shadow">
+    <div class="card-header bg-white py-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">知识库修改记录</h5>
+            <div class="text-muted small">
+                共 {{ changelogs.paginator.count }} 条记录
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-0">
+        <!-- 移动端卡片视图 -->
+        <div class="d-block d-md-none">
+            {% for log in changelogs %}
+            <div class="card mx-3 my-2">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h6 class="card-title mb-1">
+                                <i class="bi bi-clock-history me-2"></i>
+                                {{ log.timestamp|date:"Y/m/d H:i" }}
+                            </h6>
+                            <span class="badge bg-light text-dark small">
+                                {{ log.timestamp|naturaltime }}
+                            </span>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-muted small">操作人</div>
+                            <div class="fw-medium">
+                                {{ log.modified_by__username|default:"系统" }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="fw-medium text-primary mb-1">关联问题：</div>
+                        <div class="text-break clickable" data-bs-toggle="modal"
+                            data-bs-target="#questionModal{{ forloop.counter }}">
+                            {{ log.feedback__record__question|truncatechars:13 }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="fw-medium text-primary mb-1">答案：</div>
+                        <div class="text-break clickable" data-bs-toggle="modal"
+                            data-bs-target="#answerModal{{ forloop.counter }}">
+                            {{ log.feedback__record__answer|truncatechars:13 }}
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="bg-light p-2 rounded">
+                                <div class="text-muted small mb-1">原始内容</div>
+                                <div class="text-truncate clickable" data-bs-toggle="modal"
+                                    data-bs-target="#originalModal{{ forloop.counter }}">
+                                    {{ log.original|truncatechars:13 }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="bg-light p-2 rounded">
+                                <div class="text-muted small mb-1">修改内容</div>
+                                <div class="text-truncate clickable" data-bs-toggle="modal"
+                                    data-bs-target="#modifiedModal{{ forloop.counter }}">
+                                    {{ log.modified|truncatechars:13 }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-database-exclamation fs-4 d-block mb-2"></i>
+                暂无修改记录
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 桌面端表格视图 -->
+        <div class="d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">时间</th>
+                            <th>关联问题</th>
+                            <th>答案</th>
+                            <th>修改人</th>
+                            <th>原始内容</th>
+                            <th>修改内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in changelogs %}
+                        <tr>
+                            <td class="ps-4">
+                                <div>{{ log.timestamp|date:"Y/m/d H:i" }}</div>
+                                <div class="text-muted small">{{ log.timestamp }}</div>
+                            </td>
+                            <td class="text-break" style="max-width: 250px;">
+                                <div class="clickable" data-bs-toggle="modal"
+                                    data-bs-target="#questionModal{{ forloop.counter }}">
+                                    {{ log.feedback__record__question|truncatechars:13 }}
+                                </div>
+                            </td>
+                            <td class="text-break" style="max-width: 250px;">
+                                <div class="clickable" data-bs-toggle="modal"
+                                    data-bs-target="#answerModal{{ forloop.counter }}">
+                                    {{ log.feedback__record__answer|truncatechars:13 }}
+                                </div>
+                            </td>
+                            <td class="text-break" style="max-width: 250px;">
+                                {{ log.modified_by__username }}
+                            </td>
+                            <td class="text-break" style="max-width: 300px;">
+                                <div class="text-truncate clickable" data-bs-toggle="modal"
+                                    data-bs-target="#originalModal{{ forloop.counter }}">
+                                    {{ log.original|truncatechars:13 }}
+                                </div>
+                            </td>
+                            <td class="text-break" style="max-width: 300px;">
+                                <div class="text-truncate clickable" data-bs-toggle="modal"
+                                    data-bs-target="#modifiedModal{{ forloop.counter }}">
+                                    {{ log.modified|truncatechars:13 }}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-database-exclamation fs-4 d-block mb-2"></i>
+                                暂无修改记录
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 分页 -->
+        {% if changelogs.paginator.num_pages > 1 %}
+        <nav class="px-4 pt-3">
+            <ul class="pagination pagination-sm justify-content-center flex-wrap">
+                {% if changelogs.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">&laquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ changelogs.previous_page_number }}">‹</a>
+                </li>
+                {% endif %}
+
+                {% for num in changelogs.paginator.page_range %}
+                {% if num == changelogs.number %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+                {% else %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+                {% endif %}
+                {% endfor %}
+
+                {% if changelogs.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ changelogs.next_page_number }}">›</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ changelogs.paginator.num_pages }}">&raquo;</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 关联问题模态框 -->
+{% for log in changelogs %}
+<div class="modal fade" id="questionModal{{ forloop.counter }}" tabindex="-1"
+    aria-labelledby="questionModalLabel{{ forloop.counter }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="questionModalLabel{{ forloop.counter }}">关联问题</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {{ log.feedback__record__question|linebreaksbr }}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 答案模态框 -->
+{% for log in changelogs %}
+<div class="modal fade" id="answerModal{{ forloop.counter }}" tabindex="-1"
+    aria-labelledby="answerModalLabel{{ forloop.counter }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="answerModalLabel{{ forloop.counter }}">答案</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {{ log.feedback__record__answer|linebreaksbr }}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 原始内容模态框 -->
+{% for log in changelogs %}
+<div class="modal fade" id="originalModal{{ forloop.counter }}" tabindex="-1"
+    aria-labelledby="originalModalLabel{{ forloop.counter }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="originalModalLabel{{ forloop.counter }}">原始内容</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {{ log.original|linebreaksbr }}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 修改内容模态框 -->
+{% for log in changelogs %}
+<div class="modal fade" id="modifiedModal{{ forloop.counter }}" tabindex="-1"
+    aria-labelledby="modifiedModalLabel{{ forloop.counter }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modifiedModalLabel{{ forloop.counter }}">修改内容</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {{ log.modified|linebreaksbr }}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 初始化工具提示
+    document.addEventListener('DOMContentLoaded', function () {
+        const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+        tooltips.forEach(t => new bootstrap.Tooltip(t))
+    })
+</script>
+{% endblock %}

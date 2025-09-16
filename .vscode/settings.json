@@ -1,0 +1,8 @@
+{
+    "python.analysis.extraPaths": [
+        "./feedback_project"
+    ],
+    "cursorpyright.analysis.extraPaths": [
+        "./feedback_project"
+    ]
+}

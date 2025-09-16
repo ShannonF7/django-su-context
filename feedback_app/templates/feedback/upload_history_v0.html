@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}上传记录{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        background-color: #f9fafb;
+    }
+
+    .pagination .page-item.active .page-link {
+        background-color: #3b82f6;
+        border-color: #3b82f6;
+    }
+
+    .content-box {
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 12px;
+        padding: 12px;
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+
+    .fixed-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background-color: #3b82f6;
+        color: white;
+        border-radius: 8px;
+        margin-right: 12px;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .status-processing {
+        background-color: #fef9c3;
+        color: #ca8a04;
+    }
+
+    .status-success {
+        background-color: #dcfce7;
+        color: #15803d;
+    }
+
+    .status-failed {
+        background-color: #fee2e2;
+        color: #b91c1c;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-10 px-4">
+    <h1 class="text-3xl font-bold text-gray-800 mb-8 border-b pb-2">上传记录</h1>
+    {% if page_obj %}
+    <div class="space-y-6">
+        {% for upload in page_obj %}
+        <div
+            class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 p-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-4">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-lg font-semibold text-gray-800">上传文本</h2>
+                    <div class="status-badge 
+                        {% if upload.status == 'pending' %}status-processing
+                        {% elif upload.status == 'success' %}status-success
+                        {% elif upload.status == 'failed' %}status-failed
+                        {% endif %}">
+                        {% if upload.status == 'pending' %}
+                        ⏳ 处理中
+                        {% elif upload.status == 'success' %}
+                        ✅ 成功
+                        {% elif upload.status == 'failed' %}
+                        ❌ 失败
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-sm text-gray-500 mt-2 md:mt-0">{{ upload.created_at|date:"Y-m-d H:i" }}</div>
+            </div>
+
+            <div class="mb-3">
+                <h3 class="text-sm font-medium text-gray-600 mb-1">关键词：</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for keyword in upload.keywords_list %}
+                    <span class="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
+                        {{ keyword }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-medium text-gray-600 mb-1">上传文本：</h3>
+                <div class="content-box">
+                    {{ upload.content|truncatechars:300 }}
+                </div>
+            </div>
+
+            <div class="mt-4">
+                {% if upload.status == 'failed' %}
+                <button type="button"
+                    class="text-sm bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors"
+                    onclick="retryUpload('{{ upload.id }}', '{{ upload.content|escapejs }}', 'kw_{{ upload.id }}')">
+                    ↻ 重新上传
+                </button>
+                {% with kw_id="kw_"|add:upload.id|stringformat:"s" %}
+                {{ upload.keywords_list|json_script:kw_id }}
+                {% endwith %}
+                {% else %}
+                <button type="button"
+                    class="text-sm bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition-colors"
+                    onclick="deleteDocument('{{ upload.document_id }}', this)">
+                    🗑 删除记录
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Pagination -->
+        <nav aria-label="Page navigation" class="mt-8">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">首页</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %} <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">末页</a>
+                    </li>
+                    {% endif %}
+            </ul>
+            <div class="text-center text-gray-600 text-sm mt-2">
+                第 {{ page_obj.number }} 页 / 共 {{ page_obj.paginator.num_pages }} 页
+            </div>
+        </nav>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-sm p-8 text-center">
+        <div class="text-gray-400 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        </div>
+        <p class="text-gray-500 text-lg">暂无上传记录</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    async function deleteDocument(docId, buttonElement) {
+        if (!confirm('确定要删除此文档吗？此操作无法撤销')) return;
+
+        const originalHTML = buttonElement.innerHTML;
+        buttonElement.innerHTML = '删除中...';
+        buttonElement.disabled = true;
+
+        try {
+            const resp = await fetch("{% url 'feedback:delete_document' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({ id: docId })
+            });
+
+            const data = await resp.json();
+            if (data.status === 'processing') {
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                alert(`删除失败: ${data.message}`);
+                buttonElement.innerHTML = originalHTML;
+                buttonElement.disabled = false;
+            }
+        } catch (err) {
+            alert(`网络错误: ${err.message}`);
+            buttonElement.innerHTML = originalHTML;
+            buttonElement.disabled = false;
+        }
+    }
+
+    async function retryUpload(taskId) {
+            if (!confirm("确定要重新上传这条失败的文档吗？")) return;
+
+            try {
+                const resp = await fetch("{% url 'feedback:retry_document' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ task_id: taskId })
+                });
+
+                const data = await resp.json();
+
+                if (data.status === "processing") {
+                    alert("文档正在重新上传处理中，请稍后刷新查看状态");
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    alert(`失败: ${data.message}`);
+                }
+            } catch (e) {
+                alert("网络错误: " + e.message);
+            }
+        }
+</script>
+{% endblock %}

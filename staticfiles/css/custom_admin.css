@@ -1,0 +1,291 @@
+/* 通用设置 */
+html,
+body {
+    margin: 0;
+    padding: 0;
+    font-family: "Helvetica Neue", "Inter", Arial, sans-serif;
+    background-color: #f5f7fa;
+    color: #333;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+/* 全局盒模型继承 */
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+/* 视口元标签（需在 HTML 中添加） */
+/* <meta name="viewport" content="width=device-width, initial-scale=1"> */
+
+/* 居中主容器 */
+#content {
+    margin: 0 auto;
+    max-width: 1400px;
+    /* 桌面端最大宽度 */
+    width: 95%;
+    padding: 20px;
+}
+
+/* 链接样式 */
+a {
+    color: #1E88E5;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* 登录表单样式 */
+.login-form {
+    max-width: 420px;
+    margin: 60px auto;
+    padding: 30px 25px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    width: 100%;
+}
+
+.login-form h1 {
+    font-size: 24px;
+    text-align: center;
+    color: #1E88E5;
+    margin-bottom: 20px;
+}
+
+.login-form label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.login-form input[type="text"],
+.login-form input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    transition: border 0.3s;
+}
+
+.login-form input[type="text"]:focus,
+.login-form input[type="password"]:focus {
+    border-color: #1E88E5;
+    outline: none;
+}
+
+.login-form input[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    background-color: #1E88E5;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.login-form input[type="submit"]:hover {
+    background-color: #1565C0;
+}
+
+/* 错误信息 */
+.errornote {
+    background-color: #e3f2fd;
+    border-left: 5px solid #1E88E5;
+    padding: 10px;
+    margin-bottom: 15px;
+    color: #0d47a1;
+    border-radius: 4px;
+}
+
+/* 管理首页结构 */
+#content-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#content-main table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    background-color: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+#content-main caption {
+    font-size: 18px;
+    font-weight: 600;
+    background-color: #1E88E5;
+    color: #fff;
+    padding: 10px 15px;
+    text-align: left;
+}
+
+#content-main th,
+#content-main td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    word-break: break-word;
+    text-align: left;
+}
+
+#content-main tr:last-child td {
+    border-bottom: none;
+}
+
+.addlink,
+.changelink {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.addlink {
+    background-color: #E3F2FD;
+    color: #1565C0;
+    border: 1px solid #BBDEFB;
+    margin-right: 5px;
+}
+
+.changelink {
+    background-color: #E1F5FE;
+    color: #0277BD;
+    border: 1px solid #B3E5FC;
+}
+
+/* 品牌标题 */
+#site-name a {
+    font-size: 24px;
+    font-weight: bold;
+    color: #1E88E5;
+    display: inline-block;
+    max-width: 100%;
+    white-space: normal;
+}
+
+/* Logo 图片自适应 */
+.admin-logo {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 确保父容器使用 Flex 布局 */
+.object-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 调整 .addlink 样式 */
+.addlink {
+    background-color: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+    padding: 6px 12px;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-left: 10px; /* 与相邻按钮的间距 */
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .object-tools .addlink {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+        text-align: left;
+    }
+}
+
+/* 响应式支持 */
+@media (max-width: 768px) {
+    body {
+        font-size: 14px;
+    }
+
+    .main-actions {
+        display: none;
+    }
+
+    .mobile-menu {
+        display: block;   }
+
+    #content {
+        padding: 10px;
+    }
+
+    .login-form {
+        margin: 30px auto;
+        padding: 20px;
+        max-width: 90%;
+        /* 移动端更宽 */
+    }
+
+    #content-main {
+        padding: 10px;
+    }
+
+    #content-main table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #content-main th,
+    #content-main td {
+        white-space: normal;
+        padding: 8px 10px;
+        font-size: 14px;
+    }
+
+    /* 表格标题缩放 */
+    #content-main caption {
+        font-size: 16px;
+    }
+
+    /* 按钮堆叠显示 */
+    .addlink,
+    .changelink {
+        display: block;
+        margin: 5px 0;
+        width: 100%;
+    }
+
+    /* 输入框适配 */
+    input[type="text"],
+    input[type="password"],
+    select {
+        font-size: 16px;
+    }
+
+    /* 提交按钮 */
+    .login-form input[type="submit"] {
+        font-size: 16px;
+    }
+
+    /* 品牌标题字体大小调整 */
+    #site-name a {
+        font-size: 18px;
+    }
+    .object-tools .addlink {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+        text-align: left;
+    }
+}

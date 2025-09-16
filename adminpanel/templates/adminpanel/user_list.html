@@ -1,0 +1,171 @@
+{% extends "adminpanel/base.html" %}
+
+{% block content %}
+<div class="card border-0 shadow">
+    <div class="card-header bg-white py-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">用户列表</h5>
+            <a href="{% url 'adminpanel:user_add' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-2"></i>新增用户
+            </a>
+        </div>
+    </div>
+
+    <div class="card-body p-0">
+        <!-- 移动端专属卡片视图（仅在小屏显示） -->
+        <div class="d-block d-md-none">
+            {% for user in users %}
+            <div class="card mx-3 my-2">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="card-title mb-1">
+                                <i class="bi bi-person-circle me-2"></i>{{ user.username }}
+                            </h6>
+                            <div class="text-muted small">
+                                <div>ID: {{ user.id }}</div>
+                                <div>状态: {% if user.is_active %}<span class="text-success">已激活</span>{% else %}<span
+                                        class="text-danger">已禁用</span>{% endif %}</div>
+                                <div>最后登录: {{ user.last_login|date:"Y-m-d H:i"|default:"从未登录" }}</div>
+                            </div>
+                        </div>
+                        <div class="btn-group-vertical">
+                            <a href="{% url 'adminpanel:user_detail' user.id %}"
+                                class="btn btn-sm btn-outline-primary mb-2">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                                data-bs-target="#deleteModal{{ user.id }}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-database-exclamation fs-4 d-block mb-2"></i>
+                暂无用户数据
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 桌面端专属表格视图（仅在中大屏显示） -->
+        <div class="d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">ID</th>
+                            <th>用户名</th>
+                            <th>状态</th>
+                            <th>最后登录</th>
+                            <th class="pe-4 text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td class="ps-4">{{ user.id }}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-person-circle fs-5 text-secondary me-3"></i>
+                                    <div>
+                                        <div class="fw-medium">{{ user.username }}</div>
+                                        <!-- <small class="text-muted">{{ user.email|default:"-" }}</small> -->
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                <span class="badge bg-success">已激活</span>
+                                {% else %}
+                                <span class="badge bg-danger">已禁用</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.last_login|date:"Y-m-d H:i"|default:"从未登录" }}</td>
+                            <td class="pe-4 text-end">
+                                <div class="d-flex gap-2 justify-content-end">
+                                    <a href="{% url 'adminpanel:user_detail' user.id %}"
+                                        class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                                        data-bs-target="#deleteModal{{ user.id }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 通用分页组件 -->
+        {% if users.paginator.num_pages > 1 %}
+        <nav class="px-4 pt-3">
+            <ul class="pagination justify-content-center">
+                {% if users.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">&laquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ users.previous_page_number }}">‹</a>
+                </li>
+                {% endif %}
+
+                {% for num in users.paginator.page_range %}
+                {% if num == users.number %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+                {% else %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+                {% endif %}
+                {% endfor %}
+
+                {% if users.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ users.next_page_number }}">›</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ users.paginator.num_pages }}">&raquo;</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 模态框（通用） -->
+{% for user in users %}
+<div class="modal fade" id="deleteModal{{ user.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">删除确认</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    确定要永久删除用户 <strong>{{ user.username }}</strong> (ID: {{ user.id }}) 吗？
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form method="post" action="{% url 'adminpanel:user_delete' user.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">确认删除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

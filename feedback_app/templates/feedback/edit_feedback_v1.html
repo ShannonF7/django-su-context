@@ -1,0 +1,247 @@
+<!-- update context of json directly-->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>{{ title }}</h2>
+
+    {% if messages %}
+    <div class="alert alert-success" role="alert">
+        {% for message in messages %}
+        {{ message }}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="mb-3">
+            <label for="{{ form.state.id_for_label }}" class="form-label">反馈状态</label>
+            {{ form.state }}
+            {{ form.state.errors }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.feedback_answer.id_for_label }}" class="form-label">反馈答案</label>
+            {{ form.feedback_answer }}
+            {{ form.feedback_answer.errors }}
+        </div>
+        <button type="submit" class="btn btn-primary">保存更改</button>
+    </form>
+
+    <hr />
+
+    <div class="row">
+        <div class="col-md-6">
+            <h3>原始问题:</h3>
+            <div class="card mb-3">
+                <div class="card-body">{{ record.question }}</div>
+            </div>
+
+            <h3>原始答案:</h3>
+            <div class="card mb-3">
+                <div class="card-body">{{ record.answer }}</div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div id="loading-overlay"
+                style="display:block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000;">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    <div class="spinner-border text-light" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-light mt-2">正在加载文档...</p>
+                </div>
+            </div>
+
+            <div id="reference-section" style="display: none;">
+                <h3>参考资料编辑区</h3>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div id="editable-content" contenteditable="true"
+                            style="min-height: 300px; border: 1px solid #ddd; padding: 15px; border-radius: 4px; background-color: #f8f9fa;">
+                        </div>
+                        <button id="save-reference" class="btn btn-success mt-3">
+                            <i class="bi bi-save"></i> 保存当前修改
+                        </button>
+                        <div id="save-status" class="mt-2"></div>
+                    </div>
+                </div>
+
+                <h4>参考文档列表</h4>
+                <div class="list-group" id="document-list">
+                    <!-- insert in javascripts -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .document-link.active {
+        background-color: #e9ecef;
+        border-color: #dee2e6;
+        font-weight: 500;
+    }
+
+    #editable-content:focus {
+        outline: 2px solid #86b7fe;
+        border-color: #86b7fe;
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const referenceSection = document.getElementById('reference-section');
+        const editableContent = document.getElementById('editable-content');
+        const saveButton = document.getElementById('save-reference');
+        const saveStatus = document.getElementById('save-status');
+        let currentDocumentData = null;
+
+        try {
+            const contentsJsonString = '{{ documents_json|escapejs }}';
+            console.log('Raw Contents JSON String:', contentsJsonString);
+
+            if (!contentsJsonString || contentsJsonString.trim() === '') {
+                throw new Error('Contents JSON string is empty or undefined');
+            }
+
+            const contents = JSON.parse(contentsJsonString);
+            console.log('Parsed Contents:', contents);
+
+            if (contents && contents.length > 0) {
+                referenceSection.style.display = 'block';
+
+                // initial document data
+                currentDocumentData = contents[0];
+                editableContent.textContent = currentDocumentData.content;
+                console.log('Initial Document Content:', currentDocumentData.content);
+
+                // generate document list
+                const documentList = document.getElementById('document-list');
+                contents.forEach((doc, index) => {
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.className = 'list-group-item list-group-item-action document-link';
+                    link.setAttribute('data-document-data', JSON.stringify(doc).replace(/"/g, '&quot;'));
+                    link.textContent = `${doc.content.slice(0, 50)}...`;
+                    link.appendChild(document.createTextNode(' (点击编辑)'));
+                    link.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        currentDocumentData = doc;
+
+                        if (currentDocumentData) {
+                            editableContent.textContent = currentDocumentData.content;
+                            document.querySelectorAll('.document-link').forEach(l => {
+                                l.classList.remove('active');
+                            });
+                            this.classList.add('active');
+                            console.log('Current Document Data Updated:', currentDocumentData);
+                        } else {
+                            showStatus('文档未找到', 'danger');
+                        }
+                    });
+                    documentList.appendChild(link);
+                });
+
+            } else {
+                loadingOverlay.innerHTML = `
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                        <div class="alert alert-info">
+                            没有找到相关文档
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 保存按钮处理
+            saveButton.addEventListener('click', function () {
+                if (!currentDocumentData) {
+                    showStatus('请先选择要修改的文档', 'warning');
+                    return;
+                }
+
+                const newContent = editableContent.textContent.trim();
+                if (newContent === currentDocumentData.content) {
+                    showStatus('内容未修改', 'info');
+                    return;
+                }
+
+                saveButton.disabled = true;
+                showStatus('保存中...', 'info');
+
+                const payload = {
+                    name: currentDocumentData.metadata.name, // 添加 name 参数
+                    old_content: currentDocumentData.content, // 添加 old_content 参数
+                    new_content: newContent, // 添加 new_content 参数
+                };
+                console.log('Sending Payload:', payload);
+
+                fetch('{% url "feedback:update_document" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken(),
+                    },
+                    body: JSON.stringify(payload)
+                })
+                    .then(response => {
+                        console.log('Response Status:', response.status); // 调试信息
+                        console.log('Response Headers:', response.headers); // 调试信息
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Response Data:', data); // 调试信息
+                        if (data.status === 'success') {
+                            showStatus('保存成功', 'success');
+                            currentDocumentData.content = newContent;
+                        } else {
+                            showStatus('保存失败: ' + (data.message || '未知错误'), 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showStatus('网络请求失败: ' + error.message, 'danger');
+                    })
+                    .finally(() => {
+                        saveButton.disabled = false;
+                    });
+            });
+
+            // 隐藏加载动画
+            loadingOverlay.style.display = 'none';
+
+        } catch (error) {
+            console.error('初始化失败:', error);
+            loadingOverlay.innerHTML = `
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                    <div class="alert alert-danger">
+                        文档加载失败：${error.message}
+                    </div>
+                </div>
+            `;
+        }
+
+        function showStatus(message, type) {
+            saveStatus.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+
+        function getCSRFToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]').value;
+        }
+    });
+</script>
+{% endblock %}

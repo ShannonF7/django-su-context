@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .document-link.active {
+        background-color: #f0f0f0;
+        border-left: 4px solid #007bff;
+        font-weight: 600;
+        border-radius: 4px;
+        box-shadow: inset 2px 0 0 #007bff;
+        transition: all 0.2s ease;
+    }
+
+    .document-link:hover {
+        background-color: #f5f5f5;
+    }
+
+    #document-list {
+        max-height: 350px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 5px;
+        border-radius: 6px;
+        background-color: #fff;
+    }
+
+    #editable-content {
+        max-height: 350px;
+        overflow-y: auto;
+        min-height: 200px;
+        border: 1px solid #ddd;
+        padding: 15px;
+        background: #fff;
+        border-radius: 6px;
+        line-height: 1.6;
+        font-size: 1rem;
+    }
+
+    #editable-content:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.1);
+    }
+
+    #save-reference {
+        background: linear-gradient(to right, #28a745, #218838);
+        color: white !important;
+        border: none;
+        padding: 10px 25px;
+        font-weight: 600;
+        border-radius: 4px;
+        transition: all 0.3s;
+        display: inline-block;
+        text-align: center;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    #save-reference:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        background: linear-gradient(to right, #218838, #1e7e34);
+    }
+
+    #save-reference:disabled {
+        background: #6c757d;
+        transform: none;
+        box-shadow: none;
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    #save-reference::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 5px;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.5);
+        opacity: 0;
+        border-radius: 100%;
+        transform: scale(1, 1) translate(-50%);
+        transform-origin: 50% 50%;
+    }
+
+    #save-reference:active::after {
+        animation: ripple 0.6s ease-out;
+    }
+
+    @keyframes ripple {
+        0% {
+            transform: scale(0, 0);
+            opacity: 0.7;
+        }
+
+        100% {
+            transform: scale(20, 20);
+            opacity: 0;
+        }
+    }
+
+    .status-message {
+        padding: 10px 15px;
+        border-radius: 4px;
+        font-size: 0.95rem;
+    }
+
+    @media (max-width: 768px) {
+        #editable-content {
+            font-size: 0.95rem;
+            max-height: 250px;
+            min-height: 180px;
+            padding: 12px;
+        }
+
+        #document-list {
+            max-height: 200px;
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        #save-reference {
+            padding: 8px 20px;
+            font-size: 0.95rem;
+        }
+
+        .list-group-item {
+            font-size: 0.9rem;
+            padding: 0.75rem;
+        }
+
+        h4,
+        h5 {
+            font-size: 1.1rem;
+        }
+    }
+
+    .section-header {
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+        color: #2c3e50;
+    }
+
+    .card {
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        border: none;
+        margin-bottom: 20px;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 px-3">
+    <h2 class="mb-4">{{ title }}</h2>
+    <hr class="mb-4">
+
+    <!-- CSRF Token hidden input for fetch -->
+    <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+
+    <div class="row">
+        <!-- 左侧：问题与答案区域 -->
+        <div class="col-md-6 col-12 mb-4">
+            <div class="mb-4">
+                <h4 class="section-header">原始问题</h4>
+                <div class="card">
+                    <div class="card-body">{{ record.question }}</div>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h4 class="section-header">原始答案</h4>
+                <div class="card">
+                    <div class="card-body">{{ record.answer }}</div>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="section-header">当前反馈答案</h4>
+                <div class="card">
+                    <div class="card-body">{{ feedback.feedback_answer }}</div>
+                </div>
+            </div>
+
+            <div class="upload-section mt-4 d-flex flex-column align-items-center">
+                <!-- <h5 class="mb-3">上传参考资料</h5> -->
+                <p>若无相关参考资料则</p>
+                <a href="{% url 'feedback:upload_page' feedback.id %}" class="btn btn-primary upload-btn">前往上传页面</a>
+            </div>
+        </div>
+
+        <!-- 右侧：参考资料编辑区域 -->
+        <div class="col-md-6 col-12">
+            <div class="mb-4">
+                <h4 class="section-header">参考资料编辑区</h4>
+                <div class="card">
+                    <div class="card-body">
+                        <div id="editable-content" contenteditable="true"></div>
+                        <button id="save-reference" class="btn btn-success mt-3">保存更新</button>
+                        <div id="save-status" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="section-header">参考文档列表</h4>
+                <div class="alert alert-warning" id="no-docs-alert" style="display:none;">
+                    未找到相关参考资料
+                </div>
+                <div class="list-group" id="document-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const editable = document.getElementById('editable-content');
+        const btnSave = document.getElementById('save-reference');
+        const status = document.getElementById('save-status');
+        const noDocsAlert = document.getElementById('no-docs-alert');
+        let current = null;
+
+        function getDocumentsJSON() {
+            try {
+                const raw = '{{ documents_json|escapejs }}';
+                if (!raw || raw.trim() === '' || raw === '[]' || raw === 'null') {
+                    return [];
+                }
+                return JSON.parse(raw);
+            } catch (e) {
+                console.error('文档解析错误:', e);
+                return [];
+            }
+        }
+
+        try {
+            const docs = getDocumentsJSON();
+            if (docs.length === 0) {
+                noDocsAlert.style.display = 'block';
+                editable.textContent = "没有可用的参考资料";
+            } else {
+                current = docs[0];
+                editable.textContent = current.content;
+
+                const list = document.getElementById('document-list');
+                docs.forEach(doc => {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.className = 'list-group-item list-group-item-action document-link';
+
+                    // 创建文档预览内容
+                    const preview = doc.content.length > 100
+                        ? doc.content.substring(0, 100) + '...'
+                        : doc.content;
+
+                    a.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="text-truncate">${preview}</div>
+                            <span class="badge bg-primary rounded-pill">${doc.score.toFixed(2)}</span>
+                        </div>
+                    `;
+
+                    a.onclick = e => {
+                        e.preventDefault();
+                        current = doc;
+                        editable.textContent = doc.content;
+                        document.querySelectorAll('.document-link').forEach(x => x.classList.remove('active'));
+                        a.classList.add('active');
+                        status.innerHTML = '';
+                    };
+
+                    list.appendChild(a);
+                });
+
+                // 激活第一个文档
+                list.children[0].classList.add('active');
+            }
+        } catch (e) {
+            console.error('文档加载失败:', e);
+            noDocsAlert.style.display = 'block';
+            noDocsAlert.innerHTML = `<div class="alert alert-danger">文档加载失败: ${e.message}</div>`;
+        }
+
+        // 保存按钮点击事件
+        btnSave.addEventListener('click', async () => {
+            if (!current) {
+                status.innerHTML = '<div class="alert alert-warning status-message">请先选择要修改的文档</div>';
+                return;
+            }
+
+            const newText = editable.textContent.trim();
+            if (newText === current.content) {
+                status.innerHTML = '<div class="alert alert-info status-message">内容未修改</div>';
+                return;
+            }
+
+            btnSave.disabled = true;
+            status.innerHTML = '<div class="alert alert-secondary status-message">保存中...</div>';
+
+            try {
+                const resp = await fetch("{% url 'feedback:update_reference' feedback.id %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.getElementById("csrf-token").value
+                    },
+                    body: JSON.stringify({
+                        id: current.id,
+                        old_content: current.content,
+                        new_content: newText
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.status === 'success') {
+                    status.innerHTML = '<div class="alert alert-success status-message">文档内容更新成功</div>';
+                    // status.innerHTML = '<div class="alert alert-info mt-3"><i class="bi bi-info-circle"></i>您的修改已提交至审核，审核通过后才会更新到知识库</div>';
+
+                    // 更新当前文档内容
+                    current.content = newText;
+
+                    // 更新文档项中的内容
+                    const activeLink = document.querySelector('.document-link.active');
+                    if (activeLink) {
+                        const preview = newText.length > 100
+                            ? newText.substring(0, 100) + '...'
+                            : newText;
+                        activeLink.querySelector('.text-truncate').textContent = preview;
+                    }
+                } else {
+                    status.innerHTML = `<div class="alert alert-danger status-message">${data.message || '更新失败'}</div>`;
+                }
+            } catch (error) {
+                status.innerHTML = `<div class="alert alert-danger status-message">网络错误: ${error.message}</div>`;
+            } finally {
+                btnSave.disabled = false;
+            }
+        });
+    });
+</script>
+{% endblock %}

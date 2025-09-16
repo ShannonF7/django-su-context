@@ -1,0 +1,822 @@
+{% extends "adminpanel/base.html" %}
+<!-- {% load humanize %} -->
+{% load static %}
+
+{% block title %}用户行为概览 - {{ user.username }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<style>
+    .keyword-badge {
+        font-size: 0.9rem;
+        padding: 0.35em 0.65em;
+    }
+
+    .activity-container {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    @media (max-width: 768px) {
+        .activity-container {
+            flex-direction: column;
+        }
+
+        .activity-icon-container {
+            margin-right: 0;
+            margin-bottom: 1rem;
+            align-self: center;
+        }
+    }
+
+    /* 修改 HtmlDiff 生成表格的样式 */
+    table.diff {
+        font-family: 'Courier New', monospace;
+        border: 1px solid #ccc;
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+        /* 关键：固定表格布局，配合 width 有助于控制列宽 */
+        font-size: 0.9em;
+        max-width: 100%;
+        box-sizing: border-box;
+        /* 添加：允许表格水平滚动，以防内容极其密集 */
+        display: block;
+        overflow-x: auto;
+    }
+
+    /* 表头 */
+    table.diff thead {
+        /* 表头在滚动时固定 */
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    /* 表体 */
+    table.diff tbody {
+        /* 表体内容滚动 */
+        display: block;
+        max-height: 250px;
+        /* 你可以根据需要调整 */
+        overflow-y: auto;
+    }
+
+    /* 行 */
+    table.diff tr {
+        /* 每一行也是一个表格 */
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+    }
+
+
+    table.diff th {
+        background-color: #f0f0f0;
+        border: 1px solid #ccc;
+        padding: 4px;
+        text-align: center;
+        /* 表头通常不换行 */
+        white-space: nowrap;
+        /* 固定表头宽度 */
+        width: 50px;
+        /* 调整行号列宽度 */
+    }
+
+    table.diff td {
+        border: 1px solid #ccc;
+        padding: 2px 4px;
+        vertical-align: top;
+        /* 使用 !important 来覆盖 HTML 的 nowrap 属性 */
+        white-space: pre-wrap !important;
+        /* 保留文本中的换行符(\n)和空格，并允许在必要时自动换行 */
+        word-break: break-all !important;
+        /* 在任何字符之间强制换行 */
+        word-wrap: break-word !important;
+        /* 允许长单词换行 */
+        overflow-wrap: break-word !important;
+        /* (标准属性) 允许长单词换行 */
+        /* --- 核心修改点结束 --- */
+        /* 固定内容列宽度 (如果需要) */
+        /* width: calc(50% - 50px); */
+        /* 减去行号列宽度的一半，根据需要调整 */
+        /* 确保宽度设置也生效 */
+        width: auto;
+        /* 或者你指定的宽度，但要确保 !important */
+        box-sizing: border-box;
+    }
+
+    /* --- 核心修改点：确保 diff 高亮 span 也继承强制换行 --- */
+    .diff_add,
+    .diff_chg,
+    .diff_sub {
+        /* 继承父 td 的换行规则，同样使用 !important */
+        white-space: inherit !important;
+        word-break: inherit !important;
+        word-wrap: inherit !important;
+        overflow-wrap: inherit !important;
+        /* 如果需要，可以添加内边距或调整背景色透明度 */
+        /* padding: 0 1px; */
+        /* background-color: rgba(204, 255, 204, 0.8); */
+        /* 示例：稍微透明一点 */
+    }
+
+
+    /* 行号列样式 */
+    .diff_header {
+        background-color: #e0e0e0;
+        text-align: right;
+        /* 行号强制不换行 */
+        white-space: nowrap;
+        width: 50px;
+        /* 与 th 保持一致 */
+    }
+
+
+    /* 差异对比容器 - 包裹 HtmlDiff 表格 */
+    .diff-container {
+        /* 移除之前的 max-height 和 overflow-y，让 table.diff tbody 控制 */
+        /* max-height: 300px; */
+        /* overflow-y: auto; */
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        border: 1px solid #dee2e6;
+        /* 确保容器适应其内容 */
+        overflow: visible;
+        /* 或 hidden/auto 根据需要 */
+    }
+
+
+    /* 统计卡片响应式 */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+
+    .activity-content {
+        flex: 1;
+    }
+
+    .activity-header {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+    .activity-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    @media (max-width: 576px) {
+        .activity-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .activity-time {
+            text-align: left !important;
+            margin-top: 0.5rem;
+        }
+
+        .activity-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .action-buttons {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .evaluation-btn,
+        .detail-btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+    }
+
+    /* 调试面板样式 */
+    .debug-panel {
+        display: none;
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        width: 400px;
+        height: 300px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+        z-index: 1000;
+        overflow-y: auto;
+    }
+
+    #debug-console {
+        height: 250px;
+        overflow-y: auto;
+        background: #212529;
+        color: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+    }
+
+    #toggle-debug {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1001;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-person-circle me-2"></i>{{ user.username }}
+            </h2>
+        </div>
+        <div>
+            <a href="{% url 'adminpanel:user_behavior_overview' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>返回列表
+            </a>
+            {% if performance %}
+            <a href="{% url 'adminpanel:performance_evaluate' performance.id %}" class="btn btn-primary">
+                <i class="bi bi-star me-2"></i>绩效评分
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-primary mb-2">
+                        <i class="bi bi-cloud-upload fs-1"></i>
+                    </div>
+                    <h4 class="mb-1">{{ stats.total_uploads }}</h4>
+                    <p class="text-muted mb-0">总上传数</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-success mb-2">
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                    <h4 class="mb-1">{{ stats.successful_uploads }}</h4>
+                    <p class="text-muted mb-0">成功上传</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-warning mb-2">
+                        <i class="bi bi-pencil-square fs-1"></i>
+                    </div>
+                    <h4 class="mb-1">{{ stats.total_modifications }}</h4>
+                    <p class="text-muted mb-0">修改记录</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 行为记录列表 -->
+    <div class="card border-0 shadow">
+        <div class="card-header bg-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">行为记录</h5>
+                <div class="text-muted small">
+                    共 {{ activities.paginator.count }} 条记录
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            {% if activities %}
+            <div class="list-group list-group-flush">
+                {% for activity in activities %}
+                <div class="list-group-item border-0 py-3" id="activity-{{ activity.id }}">
+                    <div class="d-flex activity-container">
+                        <div class="activity-icon-container me-3">
+                            {% if activity.type == 'upload' %}
+                            <div class="bg-primary bg-opacity-10 p-3 rounded">
+                                <i class="bi bi-cloud-upload text-primary fs-4"></i>
+                            </div>
+                            {% else %}
+                            <div class="bg-warning bg-opacity-10 p-3 rounded">
+                                <i class="bi bi-pencil-square text-warning fs-4"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex-grow-1 activity-content">
+                            <div class="d-flex justify-content-between activity-header">
+                                <div>
+                                    <h6 class="mb-1">
+                                        {% if activity.type == 'upload' %}
+                                        {% if activity.status == 'success' %}
+                                        <span class="badge bg-success me-2">成功</span>
+                                        {% elif activity.status == 'failed' %}
+                                        <span class="badge bg-danger me-2">失败</span>
+                                        {% else %}
+                                        <span class="badge bg-warning me-2">处理中</span>
+                                        {% endif %}
+                                        {{ activity.task_type }}
+                                        {% else %}
+                                        <span class="badge bg-info me-2">修改</span>
+                                        知识库内容
+                                        {% endif %}
+                                    </h6>
+                                </div>
+                                <div class="activity-time text-end">
+                                    <div class="text-muted small mb-1">
+                                        {{ activity.timestamp|naturaltime }}
+                                    </div>
+                                    <div class="text-muted small">
+                                        {{ activity.timestamp|date:"Y-m-d H:i" }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-2">
+                                {% if activity.type == 'upload' %}
+                                <p class="text-muted mb-1">{{ activity.content_preview }}</p>
+                                {% if activity.keywords %}
+                                <div class="mb-1">
+                                    <small class="text-muted">关键词：</small>
+                                    {% with keywords=activity.keywords|default:"" %}
+                                    {% for keyword in keywords.split|slice:":5" %}
+                                    {% if keyword.strip %}
+                                    <span class="badge bg-light text-dark me-1 keyword-badge">{{ keyword.strip }}</span>
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% endwith %}
+                                </div>
+                                {% endif %}
+                                {% else %}
+                                <p class="text-muted mb-1">{{ activity.content }}</p>
+                                {% endif %}
+                            </div>
+
+                            <!-- 详细信息 - 使用 HtmlDiff 生成的 HTML -->
+                            {% if activity.type == 'modification' %}
+                            <div class="mt-2">
+                                <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+                                    href="#diff-{{ activity.id }}" role="button" aria-expanded="false"
+                                    aria-controls="diff-{{ activity.id }}">
+                                    <i class="bi bi-body-text me-1"></i>查看修改详情
+                                </a>
+                                <div class="collapse mt-2" id="diff-{{ activity.id }}">
+                                    <div class="diff-container">
+                                        {{ activity.diff_html | safe }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- 评分区域 -->
+                            <div class="d-flex justify-content-between align-items-center mt-3 activity-actions">
+                                <div class="score-display text-success flex-grow-1"
+                                    id="score-display-{{ activity.type }}-{{ activity.id }}">
+                                    {% if activity.message %}
+                                    <i class="bi bi-star-fill me-1"></i>
+                                    <span>{{ activity.message }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="action-buttons d-flex">
+                                    <button class="btn btn-sm btn-outline-primary evaluation-btn me-2"
+                                        data-activity-type="{{ activity.type }}" data-activity-id="{{ activity.id }}">
+                                        <i class="bi bi-star me-1"></i>评分
+                                    </button>
+                                    {% if activity.type == 'upload' %}
+                                    <button class="btn btn-sm btn-outline-info detail-btn"
+                                        data-upload-id="{{ activity.id }}">
+                                        <i class="bi bi-eye me-1"></i>详情
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 分页 -->
+            {% if activities.paginator.num_pages > 1 %}
+            <nav class="px-4 py-3">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if activities.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">&laquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ activities.previous_page_number }}">‹</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in activities.paginator.page_range %}
+                    {% if num == activities.number %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if activities.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ activities.next_page_number }}">›</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ activities.paginator.num_pages }}">&raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                <h5>暂无行为记录</h5>
+                <p>该用户还没有任何操作记录</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 评分模态框 -->
+<div class="modal fade" id="evaluationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">行为评分</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="evaluationForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="score" class="form-label">评分 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="score" name="score" min="0" max="100" required>
+                        <div class="form-text">0-100分，分数越高表示质量越好</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="comments" class="form-label">评语</label>
+                        <textarea class="form-control" id="comments" name="comments" rows="3"
+                            placeholder="请输入评语..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="submitEvaluationBtn">保存评分</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 上传详情模态框 -->
+<div class="modal fade" id="uploadDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">上传详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="uploadDetailContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">加载详情中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentActivityType = '';
+    let currentActivityId = 0;
+    let evaluationModal = null;
+    let uploadDetailModal = null;
+
+    function getCsrfToken() {
+        const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrfMeta = document.querySelector('meta[name=csrf-token]');
+        const token = (csrfInput ? csrfInput.value : null) || (csrfMeta ? csrfMeta.getAttribute('content') : null);
+        debugLog(`CSRF Token: ${token ? 'Found' : 'Not Found'}`);
+        return token;
+    }
+
+    function showToast(message, type = 'success') {
+        const toastContainer = document.getElementById('toast-container');
+        const toastId = `toast-${Date.now()}`;
+
+        const toastHTML = `
+            <div id="${toastId}" class="toast align-items-center text-white bg-${type} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+        const toastElement = document.getElementById(toastId);
+
+        if (toastElement) {
+            const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+            toast.show();
+            debugLog(`显示Toast: ${message}`);
+            toastElement.addEventListener('hidden.bs.toast', function () {
+                toastElement.remove();
+            });
+        }
+    }
+    function showEvaluationModal(activityType, activityId) {
+        currentActivityType = activityType;
+        currentActivityId = activityId;
+        debugLog(`打开评分模态框: 类型=${activityType}, ID=${activityId}`);
+        document.getElementById('evaluationForm').reset();
+        if (evaluationModal) {
+            evaluationModal.show();
+        } else {
+            debugLog("错误: evaluationModal 未初始化");
+            showToast('模态框初始化失败', 'danger');
+        }
+    }
+    async function submitEvaluation() {
+        debugLog("开始提交评分...");
+
+        const score = document.getElementById('score').value;
+        const comments = document.getElementById('comments').value;
+
+        debugLog(`评分数据: score=${score}, comments=${comments}`);
+
+        if (!score || score < 0 || score > 100) {
+            debugLog("评分验证失败");
+            showToast('请输入0-100的有效评分', 'warning');
+            return;
+        }
+
+        const csrfToken = getCsrfToken();
+        if (!csrfToken) {
+            debugLog("CSRF Token 缺失");
+            showToast('CSRF Token 缺失，请刷新页面重试', 'danger');
+            return;
+        }
+
+        try {
+            const url = `/adminpanel/quick-evaluate/${currentActivityType}/${currentActivityId}/`;
+            debugLog(`提交评分到: ${url}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    score: parseInt(score),
+                    comments: comments
+                })
+            });
+
+            debugLog(`收到响应: status=${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP错误! 状态: ${response.status}, 内容: ${errorText}`);
+            }
+
+            const data = await response.json();
+            debugLog("评分响应数据:", data);
+
+            if (data.success) {
+                const scoreDisplay = document.getElementById(`score-display-${currentActivityType}-${currentActivityId}`);
+                if (scoreDisplay) {
+                    let displayText = `评分: ${data.score}/100`;
+                    if (data.comments && data.comments.trim() !== '') {
+                        displayText += ` - ${data.comments}`;
+                    }
+
+                    scoreDisplay.innerHTML = `
+                        <i class="bi bi-star-fill me-1"></i>
+                        <span>${displayText}</span>
+                    `;
+                    scoreDisplay.classList.add("text-success");
+                    debugLog("评分显示已更新");
+                }
+
+                evaluationModal.hide();
+                showToast('评分已保存', 'success');
+                debugLog("评分保存成功");
+            } else {
+                throw new Error(data.message || '评分保存失败');
+            }
+        } catch (error) {
+            debugLog(`评分错误: ${error.message}`);
+            console.error('评分错误:', error);
+            showToast(`评分失败: ${error.message}`, 'danger');
+        }
+    }
+    function showUploadDetail(uploadId) {
+        debugLog(`请求上传详情: ID=${uploadId}`);
+
+        if (uploadDetailModal) {
+            uploadDetailModal.show();
+        } else {
+            debugLog("错误: uploadDetailModal 未初始化");
+            showToast('模态框初始化失败', 'danger');
+            return;
+        }
+
+        const detailContent = document.getElementById('uploadDetailContent');
+        detailContent.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        `;
+
+        const csrfToken = getCsrfToken();
+        if (!csrfToken) {
+            debugLog("CSRF Token 缺失");
+            showToast('CSRF Token 缺失，请刷新页面重试', 'danger');
+            return;
+        }
+
+        const url = `/adminpanel/upload-detail/${uploadId}/`;
+        debugLog(`获取上传详情URL: ${url}`);
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        })
+            .then(response => {
+                debugLog(`收到响应: status=${response.status}`);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`HTTP错误! 状态: ${response.status}, 内容: ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(result => {
+                debugLog("上传详情响应:", result);
+
+                if (result.success) {
+                    const detailData = result.data;
+                    const statusDisplay = detailData.status === 'success' ?
+                        '<span class="badge bg-success">成功</span>' :
+                        detailData.status === 'failed' ?
+                            '<span class="badge bg-danger">失败</span>' :
+                            '<span class="badge bg-warning">处理中</span>';
+
+                    const keywordsHTML = detailData.keywords && detailData.keywords.length > 0 ?
+                        detailData.keywords.map(k =>
+                            `<span class="badge bg-light text-dark me-1 mb-1 keyword-badge">${k}</span>`
+                        ).join('') :
+                        '<span class="text-muted">无关键词</span>';
+
+                    detailContent.innerHTML = `
+                        <div class="mb-3">
+                            <h5 class="border-bottom pb-2">上传详情</h5>
+                            <table class="table table-sm">
+                                <tr><th width="120">任务类型</th><td>${detailData.task_type || 'N/A'}</td></tr>
+                                <tr><th>上传时间</th><td>${detailData.upload_time || 'N/A'}</td></tr>
+                                <tr><th>状态</th><td>${statusDisplay}</td></tr>
+                                <tr><th>评分</th><td>${detailData.score || '未评分'}</td></tr>
+                                <tr><th>评语</th><td>${detailData.comments || '无'}</td></tr>
+                            </table>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h6>关键词</h6>
+                            <div class="d-flex flex-wrap">${keywordsHTML}</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h6>内容详情</h6>
+                            <div class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+                                <pre class="mb-0" style="white-space: pre-wrap;">${detailData.content || '无内容'}</pre>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h6>处理消息</h6>
+                            <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+                                <pre class="mb-0" style="white-space: pre-wrap;">${detailData.message || '无消息'}</pre>
+                            </div>
+                        </div>
+                    `;
+
+                    debugLog("上传详情加载成功");
+                } else {
+                    detailContent.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            ${result.message || '获取详情失败'}
+                        </div>
+                    `;
+                    debugLog(`上传详情失败: ${result.message}`);
+                }
+            })
+            .catch(error => {
+                debugLog(`获取详情错误: ${error.message}`);
+                console.error('获取详情错误:', error);
+                detailContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        请求失败: ${error.message}
+                    </div>
+                `;
+            });
+    }
+
+    // 页面加载完成后执行
+    document.addEventListener('DOMContentLoaded', function () {
+        debugLog("页面加载完成");
+
+        // 检查必要的元素是否存在
+        const evalModalElem = document.getElementById('evaluationModal');
+        const uploadModalElem = document.getElementById('uploadDetailModal');
+
+        if (!evalModalElem) {
+            debugLog("错误: 找不到 evaluationModal 元素");
+            showToast('页面结构错误：找不到评分模态框', 'danger');
+        } else {
+            evaluationModal = new bootstrap.Modal(evalModalElem);
+            debugLog("evaluationModal 初始化成功");
+        }
+
+        if (!uploadModalElem) {
+            debugLog("错误: 找不到 uploadDetailModal 元素");
+            showToast('页面结构错误：找不到详情模态框', 'danger');
+        } else {
+            uploadDetailModal = new bootstrap.Modal(uploadModalElem);
+            debugLog("uploadDetailModal 初始化成功");
+        }
+
+        // 事件委托处理所有按钮点击
+        document.addEventListener('click', function (event) {
+            try {
+                // 评分按钮
+                if (event.target.closest('.evaluation-btn')) {
+                    const btn = event.target.closest('.evaluation-btn');
+                    event.preventDefault();
+                    showEvaluationModal(btn.dataset.activityType, btn.dataset.activityId);
+                    return;
+                }
+
+                // 详情按钮
+                if (event.target.closest('.detail-btn')) {
+                    const btn = event.target.closest('.detail-btn');
+                    event.preventDefault();
+                    showUploadDetail(btn.dataset.uploadId);
+                    return;
+                }
+
+                // 提交评分按钮
+                if (event.target.closest('#submitEvaluationBtn')) {
+                    event.preventDefault();
+                    submitEvaluation();
+                    return;
+                }
+            } catch (e) {
+                debugLog(`事件处理错误: ${e.message}`);
+                console.error('事件处理错误:', e);
+                showToast(`操作失败: ${e.message}`, 'danger');
+            }
+        });
+
+        debugLog("事件监听器已设置");
+    });
+</script>
+{% endblock %}

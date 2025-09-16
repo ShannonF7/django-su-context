@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}用户登录 - Vectory{% endblock %}
+
+{% block content %}
+<div class="card mx-auto" style="max-width: 400px;">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">系统登录</h5>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="id_username" class="form-label">用户名</label>
+                <input type="text" name="username" class="form-control" id="id_username" required autofocus>
+            </div>
+            <div class="mb-3">
+                <label for="id_password" class="form-label">密码</label>
+                <input type="password" name="password" class="form-control" id="id_password" required>
+            </div>
+
+            <!-- 隐藏字段：如果有 'next' 参数，传递它 -->
+            <input type="hidden" name="next" value="{{ request.GET.next }}">
+
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary">登录</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

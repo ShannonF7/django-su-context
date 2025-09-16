@@ -1,0 +1,556 @@
+{% extends "adminpanel/base.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}员工绩效报表{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary-color: #4361ee;
+        --secondary-color: #3f37c9;
+        --success-color: #4cc9f0;
+        --info-color: #4895ef;
+        --warning-color: #f72585;
+        --light-bg: #f8f9fa;
+        --dark-bg: #212529;
+    }
+
+    .performance-card {
+        border-radius: 12px;
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+        margin-bottom: 24px;
+        transition: all 0.3s ease;
+        border: none;
+        overflow: hidden;
+    }
+
+    .performance-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .performance-header {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        padding: 16px 20px;
+        position: relative;
+    }
+
+    .rank-badge {
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--warning-color);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .performance-body {
+        padding: 20px;
+        background-color: white;
+    }
+
+    .stats-box {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 24px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .stats-box:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .stats-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin: 10px 0;
+    }
+
+    .stats-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .score-badge {
+        font-size: 1rem;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    .view-toggle {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 25px;
+    }
+
+    .toggle-btn {
+        padding: 10px 25px;
+        border: 2px solid var(--primary-color);
+        background: transparent;
+        color: var(--primary-color);
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+
+    .toggle-btn.active {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .toggle-btn:first-child {
+        border-radius: 8px 0 0 8px;
+    }
+
+    .toggle-btn:last-child {
+        border-radius: 0 8px 8px 0;
+    }
+
+    .chart-container {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+        display: none;
+    }
+
+    .employee-detail-modal .modal-content {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .detail-header {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        padding: 20px;
+    }
+
+    .activity-timeline {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .activity-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-badge {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        flex-shrink: 0;
+    }
+
+    .badge-modify {
+        background: rgba(67, 97, 238, 0.15);
+        color: var(--primary-color);
+    }
+
+    .badge-upload {
+        background: rgba(76, 201, 240, 0.15);
+        color: var(--success-color);
+    }
+
+    .progress-bar {
+        height: 8px;
+        border-radius: 4px;
+    }
+
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+        .stats-value {
+            font-size: 1.8rem;
+        }
+
+        .performance-header h5 {
+            font-size: 1.1rem;
+        }
+
+        .view-toggle {
+            flex-direction: column;
+        }
+
+        .toggle-btn {
+            border-radius: 8px !important;
+            margin-bottom: 10px;
+        }
+    }
+
+    /* 排名颜色 */
+    .rank-1 .rank-badge {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+    }
+
+    .rank-2 .rank-badge {
+        background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+    }
+
+    .rank-3 .rank-badge {
+        background: linear-gradient(135deg, #CD7F32, #8B4513);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- 页面标题和导出按钮 -->
+    <div class="row align-items-center mb-4">
+        <div class="col-md-6">
+            <h1 class="h3 fw-bold mb-2">员工绩效报表</h1>
+            <p class="text-muted mb-0">统计月份: {{ current_month }}</p>
+        </div>
+        <div class="col-md-6 d-flex justify-content-md-end">
+            <a href="{% url 'adminpanel:export_performance_report' %}" class="btn btn-success">
+                <i class="bi bi-download me-2"></i>导出CSV报表
+            </a>
+        </div>
+    </div>
+
+    <!-- 总体统计信息 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="stats-box">
+                <div class="stats-label">修改记录总数</div>
+                <div class="stats-value">{{ total_stats.change_count }}</div>
+                <div class="text-muted">平均分: {{ total_stats.change_avg_score }}</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-box">
+                <div class="stats-label">上传记录总数</div>
+                <div class="stats-value">{{ total_stats.upload_count }}</div>
+                <div class="text-muted">平均分: {{ total_stats.upload_avg_score }}</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-box">
+                <div class="stats-label">反馈记录总数</div>
+                <div class="stats-value">{{ total_stats.feedback_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 视图切换按钮 -->
+    <div class="view-toggle">
+        <button class="toggle-btn active" id="listViewBtn">
+            <i class="bi bi-list-ul me-2"></i>列表视图
+        </button>
+        <button class="toggle-btn" id="chartViewBtn">
+            <i class="bi bi-bar-chart me-2"></i>图表视图
+        </button>
+    </div>
+
+    <!-- 图表容器 -->
+    <div class="chart-container" id="chartView">
+        <canvas id="performanceChart" height="350"></canvas>
+    </div>
+
+    <!-- 员工绩效列表 -->
+    <div class="row" id="listView">
+        {% for data in performance_data %}
+        <div class="col-xl-4 col-lg-6 col-md-6 mb-4">
+            <div class="card performance-card rank-{{ data.rank }}">
+                <div class="performance-header">
+                    <div class="rank-badge">#{{ data.rank }}</div>
+                    <h5 class="mb-0 text-truncate">
+                        <i class="bi bi-person-circle me-2"></i>{{ data.name }}
+                    </h5>
+                </div>
+                <div class="performance-body">
+                    <div class="row mb-3">
+                        <div class="col">
+                            <h6 class="text-muted mb-2">修改记录</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>次数: {{ data.change_count }}</span>
+                                <span class="badge bg-primary score-badge">得分: {{ data.change_avg_score }}</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-primary" role="progressbar"
+                                    style="width: {% widthratio data.change_avg_score 10 100 %}%"
+                                    aria-valuenow="{{ data.change_avg_score }}" aria-valuemin="0" aria-valuemax="10">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col">
+                            <h6 class="text-muted mb-2">上传记录</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>次数: {{ data.upload_count }}</span>
+                                <span class="badge bg-info score-badge">得分: {{ data.upload_avg_score }}</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-info" role="progressbar"
+                                    style="width: {% widthratio data.upload_avg_score 10 100 %}%"
+                                    aria-valuenow="{{ data.upload_avg_score }}" aria-valuemin="0" aria-valuemax="10">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col">
+                            <h6 class="text-muted mb-2">反馈记录</h6>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>次数: {{ data.feedback_count }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="row">
+                        <div class="col">
+                            <h5 class="fw-bold mb-2">绩效总览</h5>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>行动次数: {{ data.total_actions }}</span>
+                                <span class="badge bg-success score-badge">总得分: {{ data.total_avg_score }}</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" role="progressbar"
+                                    style="width: {% widthratio data.total_avg_score 10 100 %}%"
+                                    aria-valuenow="{{ data.total_avg_score }}" aria-valuemin="0" aria-valuemax="10">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-3">
+                        <button class="btn btn-outline-primary btn-sm view-details" data-employee-id="{{ data.id }}">
+                            <i class="bi bi-eye me-1"></i>查看详情
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info" role="alert">
+                <i class="bi bi-info-circle me-2"></i>暂无员工绩效数据
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- 员工详情模态框 -->
+<div class="modal fade employee-detail-modal" id="employeeDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="detail-header">
+                <h5 class="modal-title" id="modalEmployeeName"></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="stats-box">
+                            <div class="stats-label">修改记录</div>
+                            <div class="stats-value" id="modalChangeCount">0</div>
+                            <div class="text-muted">平均分: <span id="modalChangeScore">0</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-box">
+                            <div class="stats-label">上传记录</div>
+                            <div class="stats-value" id="modalUploadCount">0</div>
+                            <div class="text-muted">平均分: <span id="modalUploadScore">0</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-box">
+                            <div class="stats-label">反馈记录</div>
+                            <div class="stats-value" id="modalFeedbackCount">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="mb-3">最近活动</h6>
+                <ul class="activity-timeline" id="activityTimeline">
+                    <!-- 活动时间线将通过JS动态填充 -->
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    $(document).ready(function () {
+        // 视图切换功能
+        $('#listViewBtn').on('click', function () {
+            $(this).addClass('active');
+            $('#chartViewBtn').removeClass('active');
+            $('#listView').show();
+            $('#chartView').hide();
+        });
+
+        $('#chartViewBtn').on('click', function () {
+            $(this).addClass('active');
+            $('#listViewBtn').removeClass('active');
+            $('#listView').hide();
+            $('#chartView').show();
+
+            // 初始化图表（如果尚未初始化）
+            if (typeof performanceChart === 'undefined') {
+                initPerformanceChart();
+            }
+        });
+
+        // 员工详情模态框
+        $('.view-details').on('click', function () {
+            const employeeId = $(this).data('employee-id');
+            loadEmployeeDetails(employeeId);
+        });
+    });
+
+    // 加载员工详情
+    function loadEmployeeDetails(employeeId) {
+        // 使用Django的URL模板标签生成正确的URL
+        const url = "{% url 'adminpanel:get_employee_detail' 0 %}".replace('0', employeeId);
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const employee = data.employee;
+                    $('#modalEmployeeName').text(employee.name);
+                    $('#modalChangeCount').text(employee.change_count);
+                    $('#modalChangeScore').text(employee.change_avg_score);
+                    $('#modalUploadCount').text(employee.upload_count);
+                    $('#modalUploadScore').text(employee.upload_avg_score);
+                    $('#modalFeedbackCount').text(employee.feedback_count);
+
+                    // 填充活动时间线
+                    const timeline = $('#activityTimeline');
+                    timeline.empty();
+
+                    if (data.activity_timeline && data.activity_timeline.length > 0) {
+                        data.activity_timeline.forEach(activity => {
+                            const badgeClass = activity.type === '修改' ? 'badge-modify' : 'badge-upload';
+                            const iconClass = activity.type === '修改' ? 'bi-pencil-square' : 'bi-cloud-upload';
+
+                            timeline.append(`
+                                <li class="activity-item">
+                                    <div class="activity-badge ${badgeClass}">
+                                        <i class="bi ${iconClass}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-content-between">
+                                            <h6 class="mb-0">${activity.type}文档</h6>
+                                            <small class="text-muted">${activity.date}</small>
+                                        </div>
+                                        <small class="text-muted">得分: ${activity.score}</small>
+                                    </div>
+                                </li>
+                            `);
+                        });
+                    } else {
+                        timeline.append('<li class="text-center py-3 text-muted">暂无活动记录</li>');
+                    }
+
+                    // 显示模态框
+                    $('#employeeDetailModal').modal('show');
+                } else {
+                    alert('加载员工详情失败: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('加载员工详情时发生错误');
+            });
+    }
+
+    // 初始化绩效图表
+    function initPerformanceChart() {
+        const chartData = {{ chart_data_json| safe
+    }};
+    const ctx = document.getElementById('performanceChart').getContext('2d');
+
+    window.performanceChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.employees,
+            datasets: [
+                {
+                    label: '修改平均分',
+                    data: chartData.change_scores,
+                    backgroundColor: 'rgba(67, 97, 238, 0.7)',
+                    borderColor: 'rgba(67, 97, 238, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '上传平均分',
+                    data: chartData.upload_scores,
+                    backgroundColor: 'rgba(76, 201, 240, 0.7)',
+                    borderColor: 'rgba(76, 201, 240, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '总平均分',
+                    data: chartData.total_scores,
+                    backgroundColor: 'rgba(72, 149, 239, 0.7)',
+                    borderColor: 'rgba(72, 149, 239, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: '员工绩效对比'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 10,
+                    title: {
+                        display: true,
+                        text: '分数'
+                    }
+                }
+            }
+        }
+    });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block head %}
+{{ block.super }}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" type="text/css" href="{% static 'css/custom_admin.css' %}">
+{% endblock %}
+
+{% block title %}{{ title }} | 我的管理系统{% endblock %}
+
+{% block branding %}
+<div id="custom-header">
+    <div class="logo-title-wrapper">
+        <img src="{% static 'images/logo.png' %}" alt="Logo" class="admin-logo">
+        <h1 id="site-name">
+            <a href="{% url 'admin:index' %}">我的管理系统</a>
+        </h1>
+    </div>
+</div>
+{% endblock %}
+
+{% block nav-global %}
+<!-- 移除顶部右侧导航栏 -->
+{% endblock %}

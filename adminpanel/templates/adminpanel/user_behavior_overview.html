@@ -1,0 +1,810 @@
+{% extends "adminpanel/base.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}用户行为概览 - {{ user.username }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 基础样式 */
+    .keyword-badge {
+        font-size: 0.85rem;
+        padding: 0.35em 0.65em;
+        margin: 0.2rem;
+        display: inline-block;
+        max-width: 100%;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .activity-container {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+        .activity-container {
+            flex-direction: column;
+        }
+
+        .activity-icon-container {
+            margin-right: 0;
+            margin-bottom: 1rem;
+            align-self: center;
+        }
+    }
+
+    /* 差异对比容器 */
+    .diff-container {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        border: 1px solid #dee2e6;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        white-space: pre-wrap;
+        font-family: monospace;
+    }
+
+    @media (max-width: 576px) {
+        .diff-container {
+            max-height: 180px;
+            font-size: 0.85rem;
+            padding: 10px;
+        }
+    }
+
+    .diff-add {
+        background-color: #d4edda;
+        padding: 2px 5px;
+        margin: 2px 0;
+    }
+
+    .diff-remove {
+        background-color: #f8d7da;
+        padding: 2px 5px;
+        margin: 2px 0;
+        text-decoration: line-through;
+    }
+
+    /* 统计卡片布局 */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+
+    .activity-content {
+        flex: 1;
+        min-width: 0;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .activity-header {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+    .activity-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 1rem;
+    }
+
+    .keywords-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin-top: 0.5rem;
+    }
+
+    /* 移动端优化 - 修复评分和按钮布局 */
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start !important;
+        }
+
+        .page-header-actions {
+            margin-top: 1rem;
+            width: 100%;
+            justify-content: space-between;
+        }
+
+        .stats-container {
+            grid-template-columns: 1fr;
+        }
+
+        .activity-header {
+            flex-direction: column;
+        }
+
+        .activity-time {
+            text-align: left !important;
+            margin-top: 0.5rem;
+        }
+
+        /* 修复移动端评分和按钮布局 */
+        .activity-actions {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.8rem;
+            padding: 0.8rem;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .score-display {
+            width: 100%;
+            margin-bottom: 0;
+            font-weight: bold;
+            font-size: 1rem;
+            text-align: center;
+            padding: 0.5rem;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            order: 1;
+            /* 将评分显示放在按钮上方 */
+        }
+
+        .action-buttons {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 0.8rem;
+            order: 2;
+            /* 将按钮放在评分下方 */
+        }
+
+        .evaluation-btn,
+        .detail-btn {
+            flex: 1;
+            min-width: 120px;
+            margin-bottom: 0;
+            padding: 0.5rem 0.8rem;
+            font-size: 0.9rem;
+        }
+
+        .activity-time {
+            width: 100%;
+            text-align: right !important;
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 0.3rem;
+            order: 3;
+            /* 将时间放在最下方 */
+        }
+
+        .activity-content {
+            padding: 0.8rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+    }
+
+    /* 内容区域文本溢出保护 */
+    .text-overflow-protection {
+        word-break: break-word;
+        overflow-wrap: break-word;
+        hyphens: auto;
+    }
+
+    /* 模态框内容溢出保护 */
+    .modal-pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    /* 卡片内容溢出保护 */
+    .card-pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 300px;
+        overflow-y: auto;
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+    }
+
+    /* 触摸设备优化 */
+    @media (hover: none) and (pointer: coarse) {
+
+        .btn,
+        .page-link {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dropdown-menu {
+            padding: 0.5rem;
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+        }
+    }
+
+    /* 平板设备优化 */
+    @media (min-width: 577px) and (max-width: 992px) {
+        .stats-container {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .activity-header {
+            flex-direction: row;
+        }
+
+        .activity-time {
+            text-align: right !important;
+        }
+    }
+
+    /* 卡片悬停效果 - 仅非触摸设备 */
+    @media (hover: hover) and (pointer: fine) {
+        .card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            transition: box-shadow 0.15s ease-in-out;
+        }
+    }
+
+    /* 评分显示优化 */
+    .score-display {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        flex-grow: 1;
+        min-width: 0;
+    }
+
+    /* 折叠内容动画 */
+    .collapse {
+        transition: all 0.3s ease;
+    }
+
+    /* 加载动画 */
+    .spinner-border {
+        width: 2rem;
+        height: 2rem;
+    }
+
+    /* 空状态优化 */
+    .empty-state {
+        padding: 3rem 1rem;
+        text-align: center;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .activity-content-block {
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 0.8rem;
+        margin-bottom: 0.5rem;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 page-header">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-person-circle me-2"></i>{{ user.username }}
+            </h2>
+        </div>
+        <div class="d-flex page-header-actions">
+            <a href="{% url 'adminpanel:user_behavior_overview' %}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left me-2"></i>返回列表
+            </a>
+            {% if performance %}
+            <a href="{% url 'adminpanel:performance_evaluate' performance.id %}" class="btn btn-primary">
+                <i class="bi bi-star me-2"></i>绩效评分
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row mb-4 stats-container">
+        <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-primary mb-2">
+                        <i class="bi bi-cloud-upload fs-1"></i>
+                    </div>
+                    <h4 class="mb-1">{{ stats.total_uploads }}</h4>
+                    <p class="text-muted mb-0">总上传数</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-success mb-2">
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                    <h4 class="mb-1">{{ stats.successful_uploads }}</h4>
+                    <p class="text-muted mb-0">成功上传</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-warning mb-2">
+                        <i class="bi bi-pencil-square fs-1"></i>
+                    </div>
+                    <h4 class="mb-1">{{ stats.total_modifications }}</h4>
+                    <p class="text-muted mb-0">修改记录</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow">
+        <div class="card-header bg-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">行为记录</h5>
+                <div class="text-muted small">
+                    共 {{ activities.paginator.count }} 条记录
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            {% if activities %}
+            <div class="list-group list-group-flush">
+                {% for activity in activities %}
+                <div class="list-group-item border-0 py-3" id="activity-{{ activity.id }}">
+                    <div class="d-flex activity-container">
+                        <div class="activity-icon-container me-3">
+                            {% if activity.type == 'upload' %}
+                            <div class="bg-primary bg-opacity-10 p-3 rounded">
+                                <i class="bi bi-cloud-upload text-primary fs-4"></i>
+                            </div>
+                            {% else %}
+                            <div class="bg-warning bg-opacity-10 p-3 rounded">
+                                <i class="bi bi-pencil-square text-warning fs-4"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex-grow-1 activity-content">
+                            <div class="d-flex justify-content-between activity-header">
+                                <div>
+                                    <h6 class="mb-1">
+                                        {% if activity.type == 'upload' %}
+                                        {% if activity.status == 'success' %}
+                                        <span class="badge bg-success me-2">成功</span>
+                                        {% elif activity.status == 'failed' %}
+                                        <span class="badge bg-danger me-2">失败</span>
+                                        {% else %}
+                                        <span class="badge bg-warning me-2">处理中</span>
+                                        {% endif %}
+                                        {{ activity.task_type }}
+                                        {% else %}
+                                        <span class="badge bg-info me-2">修改</span>
+                                        知识库内容
+                                        {% endif %}
+                                    </h6>
+                                </div>
+                                <div class="activity-time text-end">
+                                    <div class="text-muted small mb-1">
+                                        {{ activity.timestamp|naturaltime }}
+                                    </div>
+                                    <div class="text-muted small">
+                                        {{ activity.timestamp|date:"Y-m-d H:i" }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-2 text-overflow-protection">
+                                {% if activity.type == 'upload' %}
+                                <p class="text-muted mb-1">{{ activity.content_preview }}</p>
+                                {% else %}
+                                <p class="text-muted mb-1">{{ activity.content }}</p>
+                                {% endif %}
+                            </div>
+                            {% if activity.type == 'modification' %}
+                            <div class="mt-2">
+                                <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
+                                    href="#diff-{{ activity.id }}" role="button" aria-expanded="false"
+                                    aria-controls="diff-{{ activity.id }}">
+                                    <i class="bi bi-body-text me-1"></i>查看修改详情
+                                </a>
+                                <div class="collapse mt-2" id="diff-{{ activity.id }}">
+                                    <div class="diff-container">
+                                        {{ activity.diff_html | safe }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="d-flex justify-content-between align-items-center mt-3 activity-actions">
+                                <div class="score-display text-success flex-grow-1"
+                                    id="score-display-{{ activity.type }}-{{ activity.id }}">
+                                    {% if activity.message %}
+                                    <i class="bi bi-star-fill me-1"></i>
+                                    <span>{{ activity.message }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="action-buttons d-flex">
+                                    <button class="btn btn-sm btn-outline-primary evaluation-btn me-2"
+                                        data-activity-type="{{ activity.type }}" data-activity-id="{{ activity.id }}">
+                                        <i class="bi bi-star me-1"></i>评分
+                                    </button>
+                                    {% if activity.type == 'upload' %}
+                                    <button class="btn btn-sm btn-outline-info detail-btn"
+                                        data-upload-id="{{ activity.id }}">
+                                        <i class="bi bi-eye me-1"></i>详情
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if activities.paginator.num_pages > 1 %}
+            <nav class="px-4 py-3">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if activities.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">&laquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ activities.previous_page_number }}">‹</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in activities.paginator.page_range %}
+                    {% if num == activities.number %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if activities.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ activities.next_page_number }}">›</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ activities.paginator.num_pages }}">&raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <h5>暂无行为记录</h5>
+                <p>该用户还没有任何操作记录</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="evaluationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">行为评分</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="evaluationForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="score" class="form-label">评分 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="score" name="score" min="0" max="100" required>
+                        <div class="form-text">0-100分，分数越高表示质量越好</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="comments" class="form-label">评语</label>
+                        <textarea class="form-control" id="comments" name="comments" rows="3"
+                            placeholder="请输入评语..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="submitEvaluationBtn">保存评分</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="uploadDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">上传详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="uploadDetailContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">加载详情中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    function updateUploadDetailContent(detailData) {
+        const statusDisplay = detailData.status === 'success' ?
+            '<span class="badge bg-success">成功</span>' :
+            detailData.status === 'failed' ?
+                '<span class="badge bg-danger">失败</span>' :
+                '<span class="badge bg-warning">处理中</span>';
+
+        const keywordsHTML = detailData.keywords && detailData.keywords.length > 0 ?
+            detailData.keywords.map(k =>
+                `<span class="badge bg-light text-dark me-1 mb-1 keyword-badge">${k}</span>`
+            ).join('') :
+            '<span class="text-muted">无关键词</span>';
+
+        return `
+            <div class="mb-3">
+                <h5 class="border-bottom pb-2">上传详情</h5>
+                <table class="table table-sm">
+                    <tr><th width="120">任务类型</th><td>${detailData.task_type || 'N/A'}</td></tr>
+                    <tr><th>上传时间</th><td>${detailData.upload_time || 'N/A'}</td></tr>
+                    <tr><th>状态</th><td>${statusDisplay}</td></tr>
+                    <tr><th>评分</th><td>${detailData.score || '未评分'}</td></tr>
+                    <tr><th>评语</th><td>${detailData.comments || '无'}</td></tr>
+                </table>
+            </div>
+            
+            <div class="mb-3">
+                <h6>关键词</h6>
+                <div class="d-flex flex-wrap">${keywordsHTML}</div>
+            </div>
+            
+            <div class="mb-3">
+                <h6>内容详情</h6>
+                <div class="card-pre modal-pre">
+                    ${detailData.content || '无内容'}
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <h6>处理消息</h6>
+                <div class="card-pre modal-pre">
+                    ${detailData.message || '无消息'}
+                </div>
+            </div>
+        `;
+    }
+
+    let currentActivityType = '';
+    let currentActivityId = 0;
+    let evaluationModal = null;
+    let uploadDetailModal = null;
+
+    function getCsrfToken() {
+        const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        return csrfInput ? csrfInput.value : '';
+    }
+
+    window.debugLog = function (message) {
+        const consoleElem = document.getElementById('debug-console');
+        if (consoleElem) {
+            consoleElem.textContent += message + '\n';
+        }
+        console.log(message);
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        debugLog("页面加载完成");
+
+        evaluationModal = new bootstrap.Modal(document.getElementById('evaluationModal'));
+        uploadDetailModal = new bootstrap.Modal(document.getElementById('uploadDetailModal'));
+
+        document.body.addEventListener('click', function (event) {
+            const evalBtn = event.target.closest('.evaluation-btn');
+            if (evalBtn) {
+                event.preventDefault();
+                showEvaluationModal(evalBtn.dataset.activityType, evalBtn.dataset.activityId);
+                return;
+            }
+
+            const detailBtn = event.target.closest('.detail-btn');
+            if (detailBtn) {
+                event.preventDefault();
+                showUploadDetail(detailBtn.dataset.uploadId);
+                return;
+            }
+
+            const submitBtn = event.target.closest('#submitEvaluationBtn');
+            if (submitBtn) {
+                event.preventDefault();
+                submitEvaluation();
+            }
+        });
+    });
+
+    function showEvaluationModal(activityType, activityId) {
+        currentActivityType = activityType;
+        currentActivityId = activityId;
+        debugLog(`打开评分模态框: 类型=${activityType}, ID=${activityId}`);
+        document.getElementById('evaluationForm').reset();
+        evaluationModal.show();
+    }
+
+    async function submitEvaluation() {
+        debugLog("开始提交评分...");
+        const score = document.getElementById('score').value;
+        const comments = document.getElementById('comments').value;
+
+        debugLog(`评分数据: score=${score}, comments=${comments}`);
+
+        if (!score || score < 0 || score > 100) {
+            debugLog("评分验证失败");
+            showToast('请输入0-100的有效评分', 'warning');
+            return;
+        }
+
+        try {
+            const url = `/adminpanel/quick-evaluate/${currentActivityType}/${currentActivityId}/`;
+            debugLog(`提交评分到: ${url}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({
+                    score: parseInt(score),
+                    comments: comments
+                })
+            });
+
+            debugLog(`收到响应: status=${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP错误! 状态: ${response.status}, 内容: ${errorText}`);
+            }
+
+            const data = await response.json();
+            debugLog("评分响应数据:", data);
+
+            if (data.success) {
+                const scoreDisplay = document.getElementById(`score-display-${currentActivityType}-${currentActivityId}`);
+                if (scoreDisplay) {
+                    let displayText = `评分: ${data.score}/100`;
+                    if (data.comments && data.comments.trim() !== '') {
+                        displayText += ` - ${data.comments}`;
+                    }
+
+                    scoreDisplay.innerHTML = `
+                        <i class="bi bi-star-fill me-1"></i>
+                        <span>${displayText}</span>
+                    `;
+                    scoreDisplay.classList.add("text-success");
+                    debugLog("评分显示已更新");
+                }
+                evaluationModal.hide();
+                showToast('评分已保存', 'success');
+                debugLog("评分保存成功");
+            } else {
+                throw new Error(data.message || '评分保存失败');
+            }
+        } catch (error) {
+            debugLog(`评分错误: ${error.message}`);
+            console.error('评分错误:', error);
+            showToast(`评分失败: ${error.message}`, 'danger');
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        const toastContainer = document.getElementById('toast-container');
+        const toastId = `toast-${Date.now()}`;
+
+        const toastHTML = `
+            <div id="${toastId}" class="toast align-items-center text-white bg-${type} border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+        const toastElement = document.getElementById(toastId);
+        if (toastElement) {
+            new bootstrap.Toast(toastElement, { delay: 3000 }).show();
+            debugLog(`显示Toast: ${message}`);
+        }
+    }
+
+    function showUploadDetail(uploadId) {
+        debugLog(`请求上传详情: ID=${uploadId}`);
+        uploadDetailModal.show();
+        const detailContent = document.getElementById('uploadDetailContent');
+        detailContent.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        `;
+
+        const url = `/adminpanel/upload-detail/${uploadId}/`;
+        debugLog(`获取上传详情URL: ${url}`);
+
+        fetch(url)
+            .then(response => {
+                debugLog(`收到响应: status=${response.status}`);
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`HTTP错误! 状态: ${response.status}, 内容: ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(result => {
+                debugLog("上传详情响应:", result);
+
+                if (result.success) {
+                    detailContent.innerHTML = updateUploadDetailContent(result.data);
+                    debugLog("上传详情加载成功");
+                } else {
+                    detailContent.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            ${result.message || '获取详情失败'}
+                        </div>
+                    `;
+                    debugLog(`上传详情失败: ${result.message}`);
+                }
+            })
+            .catch(error => {
+                debugLog(`获取详情错误: ${error.message}`);
+                console.error('获取详情错误:', error);
+                detailContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        请求失败: ${error.message}
+                    </div>
+                `;
+            });
+    }
+</script>
+{% endblock %}

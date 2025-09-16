@@ -1,0 +1,7 @@
+.object-tools .addlink {
+    display: none !important;
+}
+
+fieldset.module.aligned .search-container {
+    margin-top: 10px;
+}

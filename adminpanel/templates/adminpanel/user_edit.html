@@ -1,0 +1,46 @@
+{% load widget_tweaks %}
+<form method="post" class="space-y-4 max-w-md mx-auto p-4 bg-white rounded shadow">
+    {% csrf_token %}
+    <h2 class="text-xl font-semibold mb-4">{% if user %}编辑用户{% else %}新增用户{% endif %}</h2>
+
+    <div>
+        <label for="{{ form.username.id_for_label }}" class="block mb-1 font-medium">用户名</label>
+        {{ form.username.errors }}
+        {{ form.username|add_class:"w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring
+        focus:ring-blue-200" }}
+    </div>
+
+    <div>
+        <label for="{{ form.phone.id_for_label }}" class="block mb-1 font-medium">电话</label>
+        {{ form.phone.errors }}
+        {{ form.phone|add_class:"w-full border border-gray-300 rounded px-3 py-2 focus:ring
+        focus:ring-blue-200" }}
+    </div>
+
+    <div class="flex items-center space-x-4">
+        <label class="flex items-center space-x-2">
+            {{ form.is_active }}
+            <span>是否激活</span>
+        </label>
+        <label class="flex items-center space-x-2">
+            {{ form.is_staff }}
+            <span>是否员工</span>
+        </label>
+    </div>
+
+    <div>
+        <label for="{{ form.password.id_for_label }}" class="block mb-1 font-medium">密码</label>
+        {{ form.password.errors }}
+        {{ form.password|add_class:"w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring
+        focus:ring-blue-200" }}
+        <p class="text-sm text-gray-500 mt-1">如不修改密码，请保持为空</p>
+    </div>
+
+    <div class="flex justify-between mt-6">
+        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            {% if user %}保存{% else %}新增{% endif %}
+        </button>
+        <a href="{% url 'adminpanel:user_list' %}"
+            class="px-6 py-2 bg-gray-300 rounded hover:bg-gray-400 text-gray-700">取消</a>
+    </div>
+</form>

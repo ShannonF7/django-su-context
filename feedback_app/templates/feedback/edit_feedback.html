@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 px-3">
+    <h2>{{ title }}</h2>
+    <hr />
+
+    <!-- CSRF Token hidden input for fetch -->
+    <input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+
+    <div class="row">
+        <!-- left -->
+        <div class="col-md-6 col-12 mb-4">
+            <h4>原始问题</h4>
+            <div class="card mb-3">
+                <div class="card-body">{{ record.question }}</div>
+            </div>
+
+            <h4>原始答案</h4>
+            <div class="card mb-3">
+                <div class="card-body">{{ record.answer }}</div>
+            </div>
+
+            <h4>当前反馈答案</h4>
+            <div class="card mb-3">
+                <div class="card-body">{{ feedback.feedback_answer }}</div>
+            </div>
+        </div>
+
+        <!-- update references in right -->
+        <div class="col-md-6 col-12">
+            <div id="loading-overlay"
+                style="position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff;">
+                    <div class="spinner-border"></div>
+                    <p>正在加载文档…</p>
+                </div>
+            </div>
+
+            <div id="reference-section" style="display:none;">
+                <h4>参考资料编辑区</h4>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div id="editable-content" contenteditable="true"
+                            style="min-height:200px; border:1px solid #ccc; padding:10px; background:#f9f9f9;"></div>
+                        <button id="save-reference" class="btn btn-success mt-3">保存修改</button>
+                        <div id="save-status" class="mt-3"></div>
+                    </div>
+                </div>
+
+                <h5>参考文档列表</h5>
+                <div class="list-group" id="document-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .document-link.active {
+        background: #e9ecef;
+        font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+        #editable-content {
+            font-size: 0.9rem;
+            min-height: 180px;
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        .btn {
+            font-size: 0.9rem;
+        }
+
+        .list-group-item {
+            font-size: 0.9rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        h4,
+        h5 {
+            font-size: 1.1rem;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const overlay = document.getElementById('loading-overlay');
+        const section = document.getElementById('reference-section');
+        const editable = document.getElementById('editable-content');
+        const btnSave = document.getElementById('save-reference');
+        const status = document.getElementById('save-status');
+        let current = null;
+
+        const raw = '{{ documents_json|escapejs }}';
+        let docs = [];
+        try {
+            docs = JSON.parse(raw);
+        } catch (e) {
+            overlay.innerHTML = '<div class="alert alert-danger">文档加载失败</div>';
+            return;
+        }
+        if (!docs.length) {
+            overlay.innerHTML = '<div class="alert alert-info">无参考文档</div>';
+            return;
+        }
+
+        overlay.style.display = 'none';
+        section.style.display = 'block';
+
+        current = docs[0];
+        editable.textContent = current.content;
+
+        const list = document.getElementById('document-list');
+        docs.forEach(doc => {
+            const a = document.createElement('a');
+            a.href = '#';
+            a.className = 'list-group-item list-group-item-action document-link';
+            const preview = doc.content.split(/[。？！]/)[0] || doc.content.slice(0, 50);
+            a.textContent = preview.slice(0, 50) + '…';
+            a.onclick = e => {
+                e.preventDefault();
+                current = doc;
+                editable.textContent = doc.content;
+                document.querySelectorAll('.document-link').forEach(x => x.classList.remove('active'));
+                a.classList.add('active');
+                status.innerHTML = '';
+            };
+            list.appendChild(a);
+        });
+        list.children[0].classList.add('active');
+
+        btnSave.onclick = async () => {
+            const newText = editable.textContent.trim();
+            if (newText === current.content) {
+                status.innerHTML = '<div class="alert alert-info">内容未修改</div>';
+                return;
+            }
+            btnSave.disabled = true;
+            status.innerHTML = '<div class="alert alert-secondary">保存中…</div>';
+
+            const resp = await fetch("{% url 'feedback:update_reference' feedback.id %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({
+                    id: current.id,
+                    old_content: current.content,
+                    new_content: newText
+                })
+            });
+
+            const data = await resp.json();
+            if (data.status === 'success') {
+                status.innerHTML = '<div class="alert alert-success">成功更新</div>';
+                current.content = newText;
+            } else {
+                status.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+            }
+            btnSave.disabled = false;
+        };
+
+        function getCSRFToken() {
+            return document.getElementById("csrf-token").value;
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}选择跳转页面{% endblock %}
+
+{% block content %}
+<div class="card mx-auto mt-5" style="max-width: 500px;">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">欢迎，{{ user.username }}</h5>
+    </div>
+    <div class="card-body">
+        <p class="mb-3">请选择你要进入的页面：</p>
+        <div class="d-grid gap-2">
+            <a href="/adminpanel/dashboard" class="btn btn-secondary">进入管理后台</a>
+            <a href="/feedback/records/" class="btn btn-primary">进入反馈系统</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
